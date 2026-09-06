@@ -32,7 +32,7 @@ src/autotype/config.py
 | `CHARACTER_INTERVAL` | `0.01` | 字符之间的间隔（秒） |
 | `START_DELAY` | `0.25` | 等待触发热键释放后的延迟（秒） |
 
-编辑 `src/autotype/config.py` 顶部常量即可修改配置,程序目前没有 CLI 或 GUI
+编辑程序同目录的 `config.json` 即可修改配置；程序没有 CLI 或 GUI。EXE 版应将 `config.json` 与 `AutoTypePaste.exe` 放在同一目录。
 
 
 ## 开发检查
@@ -56,12 +56,13 @@ AutoTypePaste/
 ├─ README.md                   # 使用、限制、检查命令
 ├─ requirements.txt            # 运行依赖：pynput
 ├─ pyproject.toml              # 包元数据、pytest/mypy、dev 依赖
+├─ config.json                 # 外部热键、字符间隔、启动延迟配置
 ├─ Start-AutoTypePaste.bat     # 源码版快捷启动脚本
 ├─ src/
 │  └─ autotype/
 │     ├─ __init__.py           # 包版本与说明
 │     ├─ __main__.py           # `python -m autotype` 入口
-│     ├─ config.py             # 热键、字符间隔、启动延迟配置
+│     ├─ config.py             # 外部 config.json 的读取和校验
 │     ├─ clipboard.py          # Windows ctypes 读取 CF_UNICODETEXT
 │     └─ typer.py              # pynput 热键监听与逐字符键入
 └─ tests/

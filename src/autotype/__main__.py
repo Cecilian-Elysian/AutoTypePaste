@@ -1,6 +1,6 @@
 """AutoTypePaste 的模块入口。"""
 
-from .typer import run
+from autotype.typer import run
 
 
 def main() -> None:

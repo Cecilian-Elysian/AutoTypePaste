@@ -28,10 +28,14 @@ def run() -> int:
         return 3
 
     try:
-        trigger_keys = frozenset(keyboard.HotKey.parse(config.HOTKEY))
-        exit_keys = frozenset(keyboard.HotKey.parse(config.EXIT_HOTKEY))
+        app_config = config.load_config()
+        trigger_keys = frozenset(keyboard.HotKey.parse(app_config.hotkey))
+        exit_keys = frozenset(keyboard.HotKey.parse(app_config.exit_hotkey))
+    except config.ConfigError as error:
+        _message(f"配置文件无效：{error}。请检查 config.json。", ANSI_ERROR)
+        return 2
     except (KeyError, ValueError) as error:
-        _message(f"热键配置无效：{error}。请检查 config.py 中的热键格式。", ANSI_ERROR)
+        _message(f"热键配置无效：{error}。请检查 config.json 中的热键格式。", ANSI_ERROR)
         return 2
 
     pressed: set[object] = set()
@@ -51,7 +55,7 @@ def run() -> int:
                 if not hotkey_held:
                     break
                 time.sleep(0.01)
-            time.sleep(config.START_DELAY)
+            time.sleep(app_config.start_delay)
             text = read_text()
             if not text:
                 _message("剪贴板为空或非文本，请先复制文字。", ANSI_ERROR)
@@ -59,7 +63,7 @@ def run() -> int:
             controller = keyboard.Controller()
             for character in text:
                 controller.type(character)
-                time.sleep(config.CHARACTER_INTERVAL)
+                time.sleep(app_config.character_interval)
         except OSError as error:
             _message(f"读取剪贴板失败：{error}。请确认当前系统为 Windows。", ANSI_ERROR)
         finally:
@@ -94,7 +98,7 @@ def run() -> int:
     try:
         listener = keyboard.Listener(on_press=on_press, on_release=on_release)
         listener.start()
-        _message(f"AutoTypePaste 已启动，输入热键 {config.HOTKEY}，退出热键 {config.EXIT_HOTKEY}。")
+        _message(f"AutoTypePaste 已启动，输入热键 {app_config.hotkey}，退出热键 {app_config.exit_hotkey}。")
         listener.join()
     except (OSError, RuntimeError) as error:
         _message(f"键盘监听启动失败：{error}。请检查权限或关闭占用键盘监听的软件。", ANSI_ERROR)

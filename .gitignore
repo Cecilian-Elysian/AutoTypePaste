@@ -3,5 +3,6 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 *.egg-info/
+*.spec
 build/
 dist/

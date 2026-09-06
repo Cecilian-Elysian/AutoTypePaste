@@ -1,0 +1,6 @@
+{
+  "hotkey": "<ctrl>+<f9>",
+  "exit_hotkey": "<ctrl>+<alt>+q",
+  "character_interval": 0.01,
+  "start_delay": 0.25
+}
