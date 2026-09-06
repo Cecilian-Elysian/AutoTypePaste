@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autotypepaste"
+version = "0.1.0"
+description = "通过全局热键逐字符键入 Windows 剪贴板文本"
+requires-python = ">=3.12"
+dependencies = ["pynput>=1.7"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "mypy>=1.8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["autotype*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: 需要 Windows 真实剪贴板的集成测试",
+]
+addopts = "-m 'not integration'"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.12"
+follow_imports = "skip"
+ignore_missing_imports = true
+disallow_untyped_defs = true
+check_untyped_defs = true
