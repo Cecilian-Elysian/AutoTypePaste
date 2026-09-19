@@ -1,6 +1,11 @@
 {
-  "hotkey": "<ctrl>+<f9>",
+  "hotkey": "<f9>",
+  "slot2_hotkey": "<f10>",
   "exit_hotkey": "<ctrl>+<alt>+q",
   "character_interval": 0.01,
-  "start_delay": 0.25
+  "start_delay": 0.25,
+  "history_size": 5,
+  "feedback": true,
+  "disable_ime": true,
+  "unicode_input": true
 }

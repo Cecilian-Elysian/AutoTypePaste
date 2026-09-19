@@ -21,16 +21,21 @@ Windows 小工具,适用于文本无法 CTRL + V 粘贴输入的情况
 src/autotype/config.py
 ```
 
->复制要输入的文字,点击目标输入框，使其获得焦点,按 Ctrl+F9，程序会等待约 0.25 秒，然后逐字符输入剪贴板内容,使用 Ctrl+Alt+Q 退出程序；也可以在 PowerShell 中按 Ctrl+C
+>复制要输入的文字,点击目标输入框，使其获得焦点,按 F9，程序会等待约 0.25 秒，然后逐字符输入剪贴板内容；按 F10 键入上一条历史文本；触发时会播放提示音，失败时播放警告音并在控制台说明原因；键入默认使用 Unicode 事件并临时关闭中文输入法，英文字母不会被拼音候选吞掉；使用 Ctrl+Alt+Q 退出程序；也可以在 PowerShell 中按 Ctrl+C
 
 默认配置(可修改配置)：
 
 | 配置 | 默认值 | 作用 |
 |---|---|---|
-| `HOTKEY` | `<ctrl>+<f9>` | 读取并键入剪贴板文本 |
+| `HOTKEY` | `<f9>` | 键入剪贴板最新文本 |
+| `SLOT2_HOTKEY` | `<f10>` | 键入上一条历史文本 |
 | `EXIT_HOTKEY` | `<ctrl>+<alt>+q` | 停止常驻程序 |
 | `CHARACTER_INTERVAL` | `0.01` | 字符之间的间隔（秒） |
 | `START_DELAY` | `0.25` | 等待触发热键释放后的延迟（秒） |
+| `HISTORY_SIZE` | `5` | 历史缓冲容量（仅内存，重启清空） |
+| `FEEDBACK` | `true` | 触发时播放系统提示音 |
+| `DISABLE_IME` | `true` | 键入期间临时关闭中文输入法 |
+| `UNICODE_INPUT` | `true` | 用 Unicode 事件键入，从根本上绕过输入法与键盘布局 |
 
 编辑程序同目录的 `config.json` 即可修改配置；程序没有 CLI 或 GUI。EXE 版应将 `config.json` 与 `AutoTypePaste.exe` 放在同一目录。
 
@@ -63,11 +68,17 @@ AutoTypePaste/
 │     ├─ __init__.py           # 包版本与说明
 │     ├─ __main__.py           # `python -m autotype` 入口
 │     ├─ config.py             # 外部 config.json 的读取和校验
-│     ├─ clipboard.py          # Windows ctypes 读取 CF_UNICODETEXT
-│     └─ typer.py              # pynput 热键监听与逐字符键入
+│     ├─ clipboard.py          # Windows ctypes 读取 CF_UNICODETEXT 并区分失败原因
+│     ├─ feedback.py           # Windows 系统提示音反馈
+│     ├─ ime.py                # Windows IMM API 键入期间临时关闭输入法
+│     ├─ unicode_input.py      # SendInput KEYEVENTF_UNICODE 直注文本
+│     └─ typer.py              # pynput 热键监听、历史缓冲与逐字符键入
 └─ tests/
-   ├─ test_config.py           # 默认配置单测
-   └─ test_clipboard.py        # Windows 剪贴板集成测试
+   ├─ test_config.py           # 配置默认值与校验单测
+   ├─ test_clipboard.py        # 剪贴板读取状态单测与集成测试
+   ├─ test_ime.py              # 输入法挂起恢复单测
+   ├─ test_unicode_input.py    # Unicode 注入单测
+   └─ test_typer.py            # 历史缓冲单测
 ```
 
 分发版
@@ -86,6 +97,9 @@ AutoTypePaste/
 - RDP、某些游戏反作弊、安全软件、沙盒应用或特殊输入框可能拦截全局热键或模拟输入(未测试)
 - Windows Defender/企业安全策略可能对自打包 EXE 产生提示；代码签名可降低此问题，但不是功能必需(未测试)
 - 程序不会修改剪贴板内容
+- 历史槽位只记录触发热键时读取到的文本，仅保存在内存中，程序重启后清空
+- 触发热键前若输入框里还有未上屏的拼音串，请先按 Esc 清掉，否则残留串会混入键入内容
+- 少数老软件对 Unicode 注入兼容不佳，出现丢字时可将 `unicode_input` 设为 `false` 回退传统键入
 - 输入期间不要切换焦点窗口，否则文本可能被键入到新的焦点窗口
 
-最后修改日期: 2026.9.6 15:15
+最后修改日期: 2026.9.19
