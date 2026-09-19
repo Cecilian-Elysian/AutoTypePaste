@@ -57,7 +57,7 @@ def load_config(path: Path | None = None) -> AppConfig:
     """
     config_path = path or default_config_path()
     try:
-        raw: Any = json.loads(config_path.read_text(encoding="utf-8"))
+        raw: Any = json.loads(config_path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError as error:
         raise ConfigError(f"未找到配置文件：{config_path}") from error
     except json.JSONDecodeError as error:

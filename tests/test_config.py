@@ -70,6 +70,18 @@ def test_load_config_reads_all_fields(tmp_path: Path) -> None:
     )
 
 
+def test_load_config_tolerates_utf8_bom(tmp_path: Path) -> None:
+    """带 BOM 的 UTF-8 配置（如记事本保存）应正常加载。"""
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        '{"hotkey":"<ctrl>+<f9>","exit_hotkey":"<ctrl>+<alt>+q",'
+        '"character_interval":0.01,"start_delay":0.25}',
+        encoding="utf-8-sig",
+    )
+
+    assert load_config(config_path).hotkey == "<ctrl>+<f9>"
+
+
 def test_load_config_rejects_invalid_interval(tmp_path: Path) -> None:
     """字符间隔为零时应给出明确配置错误。"""
     config_path = tmp_path / "config.json"
