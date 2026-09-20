@@ -32,15 +32,12 @@ class _StubLibrary:
         return self._functions[name]
 
 
-def _install_fakes(monkeypatch: pytest.MonkeyPatch, user32: _StubLibrary, imm32: _StubLibrary) -> None:
-    """把输入法模块内的 ctypes 调用替换为伪实现。"""
-
-    def fake_win_dll(name: str, use_last_error: bool = False) -> _StubLibrary:
-        if name == "imm32":
-            return imm32
-        return user32
-
-    monkeypatch.setattr(ime_module.ctypes, "WinDLL", fake_win_dll)
+def _install_fakes(
+    monkeypatch: pytest.MonkeyPatch, user32: _StubLibrary, imm32: _StubLibrary
+) -> None:
+    """把输入法模块缓存的外部库替换为伪实现。"""
+    monkeypatch.setattr(ime_module, "_USER32", user32)
+    monkeypatch.setattr(ime_module, "_IMM32", imm32)
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="仅支持 Windows")

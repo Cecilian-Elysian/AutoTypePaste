@@ -33,6 +33,13 @@ class _StubLibrary:
         return self._functions[name]
 
 
+def _install_user32(monkeypatch: pytest.MonkeyPatch, send_input: _RecordingFunction) -> None:
+    """把注入模块缓存的 user32 库替换为伪实现。"""
+    monkeypatch.setattr(
+        unicode_input_module, "_USER32", _StubLibrary({"SendInput": send_input})
+    )
+
+
 @pytest.mark.parametrize(
     ("character", "expected"),
     [
@@ -47,15 +54,36 @@ def test_code_units(character: str, expected: list[int]) -> None:
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="仅支持 Windows")
-def test_type_text_sends_unicode_events(monkeypatch: pytest.MonkeyPatch) -> None:
-    """每个字符应注入按下与释放两个 Unicode 键盘事件。"""
-    send_input = _RecordingFunction(2)
-    def fake_win_dll(name: str, use_last_error: bool = False) -> _StubLibrary:
-        return _StubLibrary({"SendInput": send_input})
-
-    monkeypatch.setattr(unicode_input_module.ctypes, "WinDLL", fake_win_dll)
+def test_type_text_batches_events_without_interval(monkeypatch: pytest.MonkeyPatch) -> None:
+    """零间隔时应把多个字符合并为一次批量注入。"""
+    send_input = _RecordingFunction(4)
+    _install_user32(monkeypatch, send_input)
 
     type_text("ab", 0)
+
+    assert len(send_input.calls) == 1
+    count, events_ptr, size = send_input.calls[0]
+    assert count == 4
+    assert size == ctypes.sizeof(_INPUT)
+    events = ctypes.cast(events_ptr, ctypes.POINTER(_INPUT))
+    assert events[0].union.ki.wScan == 0x61
+    assert events[0].union.ki.dwFlags == 0x0004
+    assert events[1].union.ki.wScan == 0x61
+    assert events[1].union.ki.dwFlags == 0x0004 | 0x0002
+    assert events[2].union.ki.wScan == 0x62
+    assert events[2].union.ki.dwFlags == 0x0004
+    assert events[3].union.ki.wScan == 0x62
+    assert events[3].union.ki.dwFlags == 0x0004 | 0x0002
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="仅支持 Windows")
+def test_type_text_with_interval_sends_per_character(monkeypatch: pytest.MonkeyPatch) -> None:
+    """正间隔时应逐字符注入，每次调用包含一个字符的按下与释放事件。"""
+    send_input = _RecordingFunction(2)
+    _install_user32(monkeypatch, send_input)
+    monkeypatch.setattr(unicode_input_module.time, "sleep", lambda _seconds: None)
+
+    type_text("ab", 0.01)
 
     assert len(send_input.calls) == 2
     for call_args in send_input.calls:
@@ -65,24 +93,42 @@ def test_type_text_sends_unicode_events(monkeypatch: pytest.MonkeyPatch) -> None
         events = ctypes.cast(events_ptr, ctypes.POINTER(_INPUT))
         assert events[1].union.ki.dwFlags == 0x0004 | 0x0002
 
+
 @pytest.mark.skipif(sys.platform != "win32", reason="仅支持 Windows")
 def test_type_text_sends_surrogate_pair_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     """增补平面字符的两个码元应按顺序注入。"""
-    send_input = _RecordingFunction(2)
-
-    def fake_win_dll(name: str, use_last_error: bool = False) -> _StubLibrary:
-        return _StubLibrary({"SendInput": send_input})
-
-    monkeypatch.setattr(unicode_input_module.ctypes, "WinDLL", fake_win_dll)
+    send_input = _RecordingFunction(4)
+    _install_user32(monkeypatch, send_input)
 
     type_text("\U0001F600", 0)
 
-    assert len(send_input.calls) == 2
-    first = ctypes.cast(send_input.calls[0][1], ctypes.POINTER(_INPUT))
-    second = ctypes.cast(send_input.calls[1][1], ctypes.POINTER(_INPUT))
-    assert first[0].union.ki.wScan == 0xD83D
-    assert first[0].union.ki.dwFlags == 0x0004
-    assert first[1].union.ki.wScan == 0xD83D
-    assert first[1].union.ki.dwFlags == 0x0004 | 0x0002
-    assert second[0].union.ki.wScan == 0xDE00
-    assert second[1].union.ki.wScan == 0xDE00
+    assert len(send_input.calls) == 1
+    events = ctypes.cast(send_input.calls[0][1], ctypes.POINTER(_INPUT))
+    assert events[0].union.ki.wScan == 0xD83D
+    assert events[0].union.ki.dwFlags == 0x0004
+    assert events[1].union.ki.wScan == 0xD83D
+    assert events[1].union.ki.dwFlags == 0x0004 | 0x0002
+    assert events[2].union.ki.wScan == 0xDE00
+    assert events[2].union.ki.dwFlags == 0x0004
+    assert events[3].union.ki.wScan == 0xDE00
+    assert events[3].union.ki.dwFlags == 0x0004 | 0x0002
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="仅支持 Windows")
+def test_type_text_raises_when_system_rejects_events(monkeypatch: pytest.MonkeyPatch) -> None:
+    """系统未接受全部注入事件时应抛出 OSError。"""
+    send_input = _RecordingFunction(0)
+    _install_user32(monkeypatch, send_input)
+
+    with pytest.raises(OSError):
+        type_text("a", 0)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="仅支持 Windows")
+def test_type_text_raises_on_partially_accepted_events(monkeypatch: pytest.MonkeyPatch) -> None:
+    """批量注入只被部分接受时也应抛出 OSError。"""
+    send_input = _RecordingFunction(3)
+    _install_user32(monkeypatch, send_input)
+
+    with pytest.raises(OSError):
+        type_text("ab", 0)

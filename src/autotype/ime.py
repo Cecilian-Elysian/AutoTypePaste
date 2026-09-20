@@ -6,6 +6,10 @@ import ctypes
 import sys
 from ctypes import wintypes
 from dataclasses import dataclass
+from typing import Any
+
+_USER32: Any = None
+_IMM32: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,19 +38,7 @@ def suspend_ime() -> ImeState | None:
     if sys.platform != "win32":
         return None
 
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
-    imm32 = ctypes.WinDLL("imm32", use_last_error=True)
-    user32.GetGUIThreadInfo.argtypes = [wintypes.DWORD, ctypes.POINTER(_GuiThreadInfo)]
-    user32.GetGUIThreadInfo.restype = wintypes.BOOL
-    user32.GetForegroundWindow.argtypes = []
-    user32.GetForegroundWindow.restype = wintypes.HWND
-    imm32.ImmGetContext.argtypes = [wintypes.HWND]
-    imm32.ImmGetContext.restype = ctypes.c_void_p
-    imm32.ImmGetOpenStatus.argtypes = [ctypes.c_void_p]
-    imm32.ImmGetOpenStatus.restype = wintypes.BOOL
-    imm32.ImmSetOpenStatus.argtypes = [ctypes.c_void_p, wintypes.BOOL]
-    imm32.ImmSetOpenStatus.restype = wintypes.BOOL
-
+    user32, imm32 = _libraries()
     info = _GuiThreadInfo()
     info.cbSize = ctypes.sizeof(_GuiThreadInfo)
     hwnd: int | None = info.hwndFocus
@@ -68,11 +60,31 @@ def restore_ime(token: ImeState | None) -> None:
     if token is None or sys.platform != "win32":
         return
 
-    imm32 = ctypes.WinDLL("imm32", use_last_error=True)
-    imm32.ImmSetOpenStatus.argtypes = [ctypes.c_void_p, wintypes.BOOL]
-    imm32.ImmSetOpenStatus.restype = wintypes.BOOL
-    imm32.ImmReleaseContext.argtypes = [wintypes.HWND, ctypes.c_void_p]
-    imm32.ImmReleaseContext.restype = wintypes.BOOL
+    _user32, imm32 = _libraries()
     if token.was_open:
         imm32.ImmSetOpenStatus(token.himc, 1)
     imm32.ImmReleaseContext(token.hwnd, token.himc)
+
+
+def _libraries() -> tuple[Any, Any]:
+    """返回缓存的 user32 与 imm32 库，首次调用时加载并配置函数原型。"""
+    global _USER32, _IMM32
+    if _USER32 is None:
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.GetGUIThreadInfo.argtypes = [wintypes.DWORD, ctypes.POINTER(_GuiThreadInfo)]
+        user32.GetGUIThreadInfo.restype = wintypes.BOOL
+        user32.GetForegroundWindow.argtypes = []
+        user32.GetForegroundWindow.restype = wintypes.HWND
+        _USER32 = user32
+    if _IMM32 is None:
+        imm32 = ctypes.WinDLL("imm32", use_last_error=True)
+        imm32.ImmGetContext.argtypes = [wintypes.HWND]
+        imm32.ImmGetContext.restype = ctypes.c_void_p
+        imm32.ImmGetOpenStatus.argtypes = [ctypes.c_void_p]
+        imm32.ImmGetOpenStatus.restype = wintypes.BOOL
+        imm32.ImmSetOpenStatus.argtypes = [ctypes.c_void_p, wintypes.BOOL]
+        imm32.ImmSetOpenStatus.restype = wintypes.BOOL
+        imm32.ImmReleaseContext.argtypes = [wintypes.HWND, ctypes.c_void_p]
+        imm32.ImmReleaseContext.restype = wintypes.BOOL
+        _IMM32 = imm32
+    return _USER32, _IMM32

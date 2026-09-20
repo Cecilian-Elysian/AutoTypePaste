@@ -4,20 +4,26 @@ from __future__ import annotations
 
 import ctypes
 import sys
+from typing import Any
 
 _MB_OK: int = 0x00000000
 _MB_ICONHAND: int = 0x00000010
 
+_USER32: Any = None
+
 
 def _beep(kind: int) -> None:
     """播放指定类型的系统提示音，非 Windows 或失败时静默忽略。"""
+    global _USER32
     if sys.platform != "win32":
         return
     try:
-        user32 = ctypes.WinDLL("user32", use_last_error=True)
-        user32.MessageBeep.argtypes = [ctypes.c_uint]
-        user32.MessageBeep.restype = ctypes.c_int
-        user32.MessageBeep(kind)
+        if _USER32 is None:
+            user32 = ctypes.WinDLL("user32", use_last_error=True)
+            user32.MessageBeep.argtypes = [ctypes.c_uint]
+            user32.MessageBeep.restype = ctypes.c_int
+            _USER32 = user32
+        _USER32.MessageBeep(kind)
     except OSError:
         return
 

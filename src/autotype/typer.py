@@ -52,6 +52,23 @@ class HistoryBuffer:
             return None
 
 
+def _resolve_slot_text(history: HistoryBuffer, slot: int) -> str | None:
+    """返回第 slot 槽位应键入的历史文本；槽位不足时返回 None。
+
+    第二槽位严格取上一条历史，剪贴板为空时不会回退到最新条目。
+    """
+    return history.snapshot(slot)
+
+
+def _conflicting_hotkey_pair(key_sets: list[frozenset[Any]]) -> tuple[int, int] | None:
+    """返回第一对键集合完全相同的热键下标对；全部互不相同时返回 None。"""
+    for first in range(len(key_sets) - 1):
+        for second in range(first + 1, len(key_sets)):
+            if key_sets[first] == key_sets[second]:
+                return (first, second)
+    return None
+
+
 def run() -> int:
     """启动常驻监听，返回约定的进程退出码。"""
     try:
@@ -72,6 +89,16 @@ def run() -> int:
         return 2
     except (KeyError, ValueError) as error:
         _message(f"热键配置无效：{error}。请检查 config.json 中的热键格式。", ANSI_ERROR)
+        return 2
+
+    conflict = _conflicting_hotkey_pair([slot_hotkeys[0][0], slot_hotkeys[1][0], exit_keys])
+    if conflict is not None:
+        first, second = conflict
+        labels = ("第一热键", "第二热键", "退出热键")
+        _message(
+            f"热键配置无效：{labels[first]}与{labels[second]}重复。请检查 config.json。",
+            ANSI_ERROR,
+        )
         return 2
 
     all_trigger_keys: frozenset[Any] = frozenset()
@@ -100,20 +127,25 @@ def run() -> int:
 
             result = read_text_detailed()
             current: str | None = result.text if result.status is ClipboardStatus.OK else None
-            if current:
-                history.push(current)
-            elif slot == 1:
-                if app_config.feedback:
-                    beep_warn()
-                hint = _READ_HINTS.get(result.status, "读取剪贴板失败。")
-                _message(f"未键入：{hint}", ANSI_ERROR)
-                return
-            text = current if slot == 1 else history.snapshot(2 if current else 1)
-            if text is None:
-                if app_config.feedback:
-                    beep_warn()
-                _message("未键入：暂无上一次的剪贴板内容，请先用第一热键键入一次。", ANSI_ERROR)
-                return
+            text: str
+            if slot == 1:
+                if not current:
+                    if app_config.feedback:
+                        beep_warn()
+                    hint = _READ_HINTS.get(result.status, "读取剪贴板失败。")
+                    _message(f"未键入：{hint}", ANSI_ERROR)
+                    return
+                text = current
+            else:
+                if current:
+                    history.push(current)
+                previous = _resolve_slot_text(history, slot)
+                if previous is None:
+                    if app_config.feedback:
+                        beep_warn()
+                    _message("未键入：暂无上一条历史内容，请先用第一热键键入一次。", ANSI_ERROR)
+                    return
+                text = previous
 
             if app_config.feedback:
                 beep_ok()

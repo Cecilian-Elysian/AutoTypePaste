@@ -21,27 +21,36 @@ class _StubFunction:
         return self.result
 
 
+class _SequentialFunction:
+    """按预设序列依次返回结果的伪外部函数，序列耗尽后重复最后一项。"""
+
+    def __init__(self, results: list[object]) -> None:
+        self.results = results
+        self.calls: int = 0
+
+    def __call__(self, *_args: object) -> object:
+        index = min(self.calls, len(self.results) - 1)
+        self.calls += 1
+        return self.results[index]
+
+
 class _StubLibrary:
     """以属性形式暴露伪外部函数的伪动态库。"""
 
-    def __init__(self, functions: dict[str, _StubFunction]) -> None:
+    def __init__(self, functions: dict[str, object]) -> None:
         self._functions = functions
 
-    def __getattr__(self, name: str) -> _StubFunction:
+    def __getattr__(self, name: str) -> object:
         return self._functions[name]
 
 
 def _install_fakes(
-    monkeypatch: pytest.MonkeyPatch, user32: _StubLibrary, kernel32: _StubLibrary
+    monkeypatch: pytest.MonkeyPatch, user32: object, kernel32: object
 ) -> None:
-    """把剪贴板模块内的 ctypes 调用替换为伪实现。"""
-
-    def fake_win_dll(name: str, use_last_error: bool = False) -> _StubLibrary:
-        if name == "kernel32":
-            return kernel32
-        return user32
-
-    monkeypatch.setattr(clipboard_module.ctypes, "WinDLL", fake_win_dll)
+    """把剪贴板模块缓存的外部库替换为伪实现，并屏蔽重试等待。"""
+    monkeypatch.setattr(clipboard_module, "_USER32", user32)
+    monkeypatch.setattr(clipboard_module, "_KERNEL32", kernel32)
+    monkeypatch.setattr(clipboard_module.time, "sleep", lambda _seconds: None)
 
 
 def _user32_library(
@@ -134,6 +143,49 @@ def test_read_text_returns_none_when_locked(monkeypatch: pytest.MonkeyPatch) -> 
     _install_fakes(monkeypatch, _user32_library(open_result=0), _kernel32_library())
 
     assert read_text() is None
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="仅支持 Windows")
+def test_read_text_detailed_retries_until_unlocked(monkeypatch: pytest.MonkeyPatch) -> None:
+    """剪贴板被占用时应短暂重试，解锁后成功读取。"""
+    buffer = ctypes.create_unicode_buffer("重试文本")
+    open_clipboard = _SequentialFunction([0, 0, 1])
+    user32 = _StubLibrary(
+        {
+            "OpenClipboard": open_clipboard,
+            "CloseClipboard": _StubFunction(1),
+            "IsClipboardFormatAvailable": _StubFunction(1),
+            "CountClipboardFormats": _StubFunction(5),
+            "GetClipboardData": _StubFunction(4321),
+        }
+    )
+    _install_fakes(
+        monkeypatch, user32, _kernel32_library(lock_result=ctypes.addressof(buffer))
+    )
+
+    assert read_text_detailed() == ReadResult(ClipboardStatus.OK, "重试文本")
+    assert open_clipboard.calls == 3
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="仅支持 Windows")
+def test_read_text_detailed_locked_after_exhausting_retries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """重试次数耗尽后仍被占用时应报告占用状态。"""
+    open_clipboard = _SequentialFunction([0])
+    user32 = _StubLibrary(
+        {
+            "OpenClipboard": open_clipboard,
+            "CloseClipboard": _StubFunction(1),
+            "IsClipboardFormatAvailable": _StubFunction(1),
+            "CountClipboardFormats": _StubFunction(5),
+            "GetClipboardData": _StubFunction(4321),
+        }
+    )
+    _install_fakes(monkeypatch, user32, _kernel32_library())
+
+    assert read_text_detailed() == ReadResult(ClipboardStatus.LOCKED, None)
+    assert open_clipboard.calls == 3
 
 
 @pytest.mark.integration
