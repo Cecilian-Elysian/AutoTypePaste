@@ -21,14 +21,14 @@ Windows 小工具,适用于文本无法 CTRL + V 粘贴输入的情况
 src/autotype/config.py
 ```
 
->复制要输入的文字,点击目标输入框，使其获得焦点,按 F9，程序会等待约 0.25 秒，然后逐字符输入剪贴板内容；按 F10 键入历史中的上一条文本（不足两条时提示，不会退回最新一条）；触发时会播放提示音，失败时播放警告音并在控制台说明原因；剪贴板被其它程序占用时会自动重试几次；键入默认使用 Unicode 事件并临时关闭中文输入法，英文字母不会被拼音候选吞掉；使用 Ctrl+Alt+Q 退出程序；也可以在 PowerShell 中按 Ctrl+C
+>复制要输入的文字,点击目标输入框，使其获得焦点,按 F9，程序会等待约 0.25 秒，然后逐字符输入剪贴板内容；按 F10 在终端列出最近的键入历史，按 ↑/↓ 选择，再按 F10 键入选中项，按 Esc 取消（历史为空时会提示）；触发时会播放提示音，失败时播放警告音并在控制台说明原因；剪贴板被其它程序占用时会自动重试几次；键入默认使用 Unicode 事件并临时关闭中文输入法，英文字母不会被拼音候选吞掉；使用 Ctrl+Alt+Q 退出程序；也可以在 PowerShell 中按 Ctrl+C
 
 默认配置(可修改配置)：
 
 | 配置 | 默认值 | 作用 |
 |---|---|---|
 | `HOTKEY` | `<f9>` | 键入剪贴板最新文本 |
-| `SLOT2_HOTKEY` | `<f10>` | 键入上一条历史文本 |
+| `SLOT2_HOTKEY` | `<f10>` | 打开历史选择（↑/↓ 选择，再按 F10 键入选中项，Esc 取消） |
 | `EXIT_HOTKEY` | `<ctrl>+<alt>+q` | 停止常驻程序 |
 | `CHARACTER_INTERVAL` | `0.01` | 字符之间的间隔（秒） |
 | `START_DELAY` | `0.25` | 等待触发热键释放后的延迟（秒） |
@@ -37,7 +37,7 @@ src/autotype/config.py
 | `DISABLE_IME` | `true` | 键入期间临时关闭中文输入法 |
 | `UNICODE_INPUT` | `true` | 用 Unicode 事件键入，从根本上绕过输入法与键盘布局 |
 
-编辑程序同目录的 `config.json` 即可修改配置；程序没有 CLI 或 GUI。EXE 版应将 `config.json` 与 `AutoTypePaste.exe` 放在同一目录。
+config.json 可选：缺失时直接使用代码内置默认值启动；存在时按其内容覆盖默认值；内容非法（如 JSON 错误或字段类型不对）时报错退出。EXE 版应将可选的 `config.json` 与 `AutoTypePaste.exe` 放在同一目录。
 
 
 ## 开发检查
@@ -66,19 +66,9 @@ AutoTypePaste/
 ├─ src/
 │  └─ autotype/
 │     ├─ __init__.py           # 包版本与说明
-│     ├─ __main__.py           # `python -m autotype` 入口
-│     ├─ config.py             # 外部 config.json 的读取和校验
-│     ├─ clipboard.py          # Windows ctypes 读取 CF_UNICODETEXT 并区分失败原因
-│     ├─ feedback.py           # Windows 系统提示音反馈
-│     ├─ ime.py                # Windows IMM API 键入期间临时关闭输入法
-│     ├─ unicode_input.py      # SendInput KEYEVENTF_UNICODE 直注文本
-│     └─ typer.py              # pynput 热键监听、历史缓冲与逐字符键入
+│     └─ __main__.py           # `python -m autotype` 入口与全部实现（配置/剪贴板/输入法/Unicode 注入/历史/热键）
 └─ tests/
-   ├─ test_config.py           # 配置默认值与校验单测
-   ├─ test_clipboard.py        # 剪贴板读取状态单测与集成测试
-   ├─ test_ime.py              # 输入法挂起恢复单测
-   ├─ test_unicode_input.py    # Unicode 注入单测
-   └─ test_typer.py            # 历史缓冲单测
+   └─ test_autotype.py         # 配置、剪贴板、输入法、注入、历史、热键辅助的单测与集成测试
 ```
 
 分发版
