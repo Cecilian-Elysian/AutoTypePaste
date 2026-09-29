@@ -76,7 +76,7 @@ AutoTypePaste/
 AutoTypePaste/
 ├─ AutoTypePaste.exe
 ├─ config.json                 # 外部可编辑配置
-└─ README.txt
+└─ README.md
 ```
 ## 注意事项
 
